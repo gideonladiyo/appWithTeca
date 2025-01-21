@@ -27,7 +27,29 @@ class ChatService{
       senderEmail: currentUserEmail,
       receiverID: receiverID,
       message: message,
-      timestamp: timestamp
+      timestamp: timestamp,
+      type: "text"
+    );
+
+    List<String> ids = [currentUserID, receiverID];
+    ids.sort();
+    String chatRoomID = ids.join('_');
+
+    await _firestore.collection("chat_rooms").doc(chatRoomID).collection('message').add(newMessage.toMap());
+  }
+
+  Future<void> sendSticker(String receiverID, stickerUrl) async{
+    final String currentUserID = _auth.currentUser!.uid;
+    final String currentUserEmail = _auth.currentUser!.email!;
+    final Timestamp timestamp = Timestamp.now();
+
+    Message newMessage = Message(
+        senderID: currentUserID,
+        senderEmail: currentUserEmail,
+        receiverID: receiverID,
+        message: stickerUrl,
+        timestamp: timestamp,
+        type: "sticker"
     );
 
     List<String> ids = [currentUserID, receiverID];

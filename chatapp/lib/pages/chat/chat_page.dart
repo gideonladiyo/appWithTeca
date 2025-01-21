@@ -1,4 +1,5 @@
 import 'package:chatapp/pages/chat/widgets/chat_bubble.dart';
+import 'package:chatapp/pages/chat/widgets/user_input.dart';
 import 'package:chatapp/pages/login/widgets/my_textfield.dart';
 import 'package:chatapp/service/auth/auth_service.dart';
 import 'package:chatapp/service/chat/chat_service.dart';
@@ -7,9 +8,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class ChatPage extends StatefulWidget {
-  final String receiverEmail;
+  final String receiverName;
   final String receiverID;
-  ChatPage({super.key, required this.receiverEmail, required this.receiverID});
+  final String profileUrl;
+  ChatPage({super.key, required this.receiverName, required this.receiverID, required this.profileUrl});
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -59,26 +61,86 @@ class _ChatPageState extends State<ChatPage> {
   void sendMessage() async {
     if (_messageController.text.isNotEmpty) {
       await _chatService.sendMessage(widget.receiverID, _messageController.text);
-
       _messageController.clear();
     }
+  }
+
+  AppBar buildAppBar() {
+    return AppBar(
+      centerTitle: true,
+      elevation: 0,
+      backgroundColor: Colors.white,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.black),
+        onPressed: () => Navigator.pop(context),
+      ),
+      titleSpacing: 0,
+      title: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.grey.shade200,
+                width: 1,
+              ),
+            ),
+            child: ClipOval(
+              child: Image.network(
+                widget.profileUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(
+                    Icons.person,
+                    size: 25,
+                    color: Colors.grey,
+                  );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.receiverName,
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Chat with ${widget.receiverEmail}"),
-      ),
+      appBar: buildAppBar(),
       body: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.only(right: 15.0, left: 15, bottom: 20),
         child: Column(
           children: [
             Expanded(
               child: _buildMessageList(),
             ),
-
-            _buildUserInput()
+            SizedBox(height: 20,),
+            UserInputWidget(
+              messageController: _messageController,
+              focusNode: myFocusNode,
+              onSendMessage: sendMessage,
+              receiverID: widget.receiverID,
+            ),
           ],
         ),
       ),
@@ -91,12 +153,24 @@ class _ChatPageState extends State<ChatPage> {
       stream: _chatService.getMessage(widget.receiverID, senderID),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return const Text("error");
+          return const Text("Error");
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return CircularProgressIndicator(color: AppColor.primaryColor,);
+          return Center(
+            child: CircularProgressIndicator(color: AppColor.primaryColor),
+          );
         }
+
+        if (snapshot.data!.docs.isEmpty) {
+          return const Center(child: Text("No messages yet."));
+        }
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            scrollDown();
+          }
+        });
 
         return ListView(
           controller: _scrollController,
@@ -110,6 +184,7 @@ class _ChatPageState extends State<ChatPage> {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
 
     bool isCurrentUser = data['senderID'] == _authService.getCurrentUser()!.uid;
+    bool isText = data['type'] == 'text';
     var alignment = isCurrentUser ? Alignment.centerRight : Alignment.centerLeft;
 
     return Container(
@@ -117,31 +192,9 @@ class _ChatPageState extends State<ChatPage> {
         child: Column(
           crossAxisAlignment: isCurrentUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            ChatBubble(message: data['message'], isCurrentUser: isCurrentUser),
+            ChatBubble(message: data['message'], isCurrentUser: isCurrentUser, isText: isText,),
           ],
         )
-    );
-  }
-
-  Widget _buildUserInput() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(),
-      child: Row(
-        children: [
-          Expanded(
-            child: MyTextfield(hint: "Type a message", textController: _messageController, focusNode: myFocusNode,)
-          ),
-
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.green,
-              shape: BoxShape.circle
-            ),
-              margin: const EdgeInsets.symmetric(horizontal: 10),
-              child: IconButton(onPressed: sendMessage, icon: Icon(Icons.arrow_upward, color: Colors.white,))
-          )
-        ],
-      ),
     );
   }
 }

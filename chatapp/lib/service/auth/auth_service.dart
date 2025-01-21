@@ -17,10 +17,13 @@ class AuthService{
           password: password
       );
 
+      DocumentSnapshot userDoc = await _firestore.collection("Users").doc(userCredential.user!.uid).get();
+
       _firestore.collection("Users").doc(userCredential.user!.uid).set(
         {
           'uid': userCredential.user!.uid,
-          'email': email
+          'email': email,
+          'name': userDoc['name']
         }
       );
 
